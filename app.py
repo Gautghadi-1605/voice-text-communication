@@ -1,28 +1,56 @@
 from flask import Flask, request, jsonify
-from twilio.twiml.voice_response import VoiceResponse
-from google.cloud import speech_v1p1beta1 as speech
-from google.cloud import texttospeech_v1 as texttospeech
+from twilio.rest import Client
 from googletrans import Translator
+import os
 
 app = Flask(__name__)
+
+# Set up Twilio client
+TWILIO_SID = os.getenv('TWILIO_SID')
+TWILIO_AUTH_TOKEN = os.getenv('TWILIO_AUTH_TOKEN')
+TWILIO_PHONE_NUMBER = os.getenv('TWILIO_PHONE_NUMBER')
+
+client = Client(TWILIO_SID, TWILIO_AUTH_TOKEN)
+
+# Set up Google Translator
 translator = Translator()
 
-@app.route('/voice', methods=['POST'])
-def voice():
-    resp = VoiceResponse()
-    resp.say("Please speak after the beep.")
-    resp.record(timeout=5, transcribe_callback='/transcribe')
-    return str(resp)
+@app.route('/')
+def index():
+    return "Welcome to the Voice and Text Communication API!"
 
-@app.route('/transcribe', methods=['POST'])
-def transcribe():
-    recording_url = request.form['RecordingUrl']
-    # Logic to fetch the recording and process it with Google APIs goes here
-    transcript = "Processed text from speech"  # Placeholder for processed text
+@app.route('/sms', methods=['POST'])
+def sms_reply():
+    """Respond to incoming SMS with a translated message."""
+    incoming_message = request.form.get('Body')
+    to_number = request.form.get('From')
     
-    # Translate the text
-    translated = translator.translate(transcript, dest='es')  # Example: translating to Spanish
-    return jsonify({'translated_text': translated.text})
+    # Translate incoming message to English
+    translated_message = translator.translate(incoming_message, dest='en').text
 
-if __name__ == "__main__":
+    # Send response
+    response_message = f"Received and translated message: {translated_message}"
+    client.messages.create(
+        body=response_message,
+        from_=TWILIO_PHONE_NUMBER,
+        to=to_number
+    )
+    return jsonify({"status": "Message received and response sent"}), 200
+
+@app.route('/call', methods=['POST'])
+def call_reply():
+    """Handle incoming voice calls and respond with a translation."""
+    from_number = request.form.get('From')
+    call_sid = request.form.get('CallSid')
+
+    # Respond with a simple message
+    response_message = "Your call has been received and will be processed shortly."
+
+    call = client.calls(call_sid).update(
+        twiml=f"<Response><Say>{response_message}</Say></Response>"
+    )
+
+    return jsonify({"status": "Call response updated"}), 200
+
+if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
