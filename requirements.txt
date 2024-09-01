@@ -1,5 +1,7 @@
-Flask==2.2.2
+
 twilio==8.0.0
 google-cloud-speech==2.16.1
 google-cloud-texttospeech==2.11.0
 googletrans==4.0.0-rc1
+Flask==2.3.2
+Werkzeug==2.3.4
